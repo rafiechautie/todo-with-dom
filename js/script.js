@@ -1,0 +1,232 @@
+/**
+ * Variabel todos adalah sebuah variabel berisi array yang akan menampung beberapa object.
+ *  Object ini berisikan data-data Todo user. 
+ */
+const todos = [];
+/**
+ * Variabel RENDER_EVENT bertujuan untuk mendefinisikan Custom Event dengan nama 'render-todo'.
+ *  Custom event ini digunakan sebagai patokan dasar ketika ada perubahan data pada variabel todos,
+ *  seperti perpindahan todo (dari incomplete menjadi complete, dan sebaliknya), menambah todo, maupun menghapus todo
+ */
+const RENDER_EVENT = 'render-todo';
+/**
+ * Kode di atas adalah sebuah listener yang akan menjalankan kode yang ada didalamnya
+ *  ketika event DOMContentLoaded dibangkitkan alias ketika semua elemen HTML sudah dimuat menjadi DOM dengan baik.
+ */
+document.addEventListener('DOMContentLoaded', function () {
+    const submitForm = document.getElementById('form');
+    submitForm.addEventListener('submit', function (event) {
+      event.preventDefault();
+      addTodo();
+    });
+
+    if (isStorageExist()) {
+      loadDataFromStorage();
+    }
+});
+
+document.addEventListener(RENDER_EVENT, function () {
+    // console.log(todos);
+    const uncompletedTODOList = document.getElementById('todos');
+    uncompletedTODOList.innerHTML = '';
+
+    const completedTODOList = document.getElementById('completed-todos');
+    completedTODOList.innerHTML = '';
+    
+    for (const todoItem of todos) {
+        const todoElement = makeTodo(todoItem);
+        if (!todoItem.isCompleted) {
+          uncompletedTODOList.append(todoElement);
+        }else{
+            completedTODOList.append(todoElement);
+        }
+      }
+  });
+
+
+function addTodo() {
+    /**
+     * Kode document.getElementById("title").value berfungsi untuk mengambil elemen pada html.
+     *  Dalam kasus tersebut, kita menangkap element <input> dengan id title dan memanggil
+     *  properti value untuk mendapatkan nilai yang diinputkan oleh user. Logika yang sama juga dilakukan pada input date.
+     */
+    const textTodo = document.getElementById('title').value;
+    const timestamp = document.getElementById('date').value;
+   
+    //buat id secara otomatis
+    const generatedID = generateId();
+    //buat object untuk menyipan data todo
+    const todoObject = generateTodoObject(generatedID, textTodo, timestamp, false);
+    //data yang diinput oleh user disimpan ke object
+    todos.push(todoObject);
+   
+    /**
+     * kita panggil sebuah custom event RENDER_EVENT menggunakan method dispatchEvent().
+     *  Custom event ini akan kita terapkan untuk me-render data yang telah disimpan pada array todos.
+     */
+    document.dispatchEvent(new Event(RENDER_EVENT));
+     saveData();
+}
+
+function makeTodo(todoObject) {
+    const textTitle = document.createElement('h2');
+    //ambil data task dari object todoObject
+    textTitle.innerText = todoObject.task;
+   
+    const textTimestamp = document.createElement('p');
+    //ambil data timestamp dari object todoObject
+    textTimestamp.innerText = todoObject.timestamp;
+   
+    const textContainer = document.createElement('div');
+    textContainer.classList.add('inner');
+    //masukkan textTittle dan textTimeStamp ke dalam textContainer
+    textContainer.append(textTitle, textTimestamp);
+   
+    const container = document.createElement('div');
+    container.classList.add('item', 'shadow');
+    container.append(textContainer);
+    //buat id dan masukkan ke container
+    container.setAttribute('id', `todo-${todoObject.id}`);
+
+    if (todoObject.isCompleted) {
+        const undoButton = document.createElement('button');
+        undoButton.classList.add('undo-button');
+     
+        undoButton.addEventListener('click', function () {
+          undoTaskFromCompleted(todoObject.id);
+        });
+     
+        const trashButton = document.createElement('button');
+        trashButton.classList.add('trash-button');
+     
+        trashButton.addEventListener('click', function () {
+          removeTaskFromCompleted(todoObject.id);
+        });
+     
+        container.append(undoButton, trashButton);
+      } else {
+        const checkButton = document.createElement('button');
+        checkButton.classList.add('check-button');
+        
+        checkButton.addEventListener('click', function () {
+          addTaskToCompleted(todoObject.id);
+        });
+        
+        container.append(checkButton);
+      }
+     
+      return container;
+   
+
+  }
+
+  function addTaskToCompleted (todoId) {
+    const todoTarget = findTodo(todoId);
+   
+    if (todoTarget == null) return;
+   
+    todoTarget.isCompleted = true;
+    document.dispatchEvent(new Event(RENDER_EVENT));
+    saveData();
+  }
+
+  function findTodo(todoId) {
+    for (const todoItem of todos) {
+      if (todoItem.id === todoId) {
+        return todoItem;
+      }
+    }
+    return null;
+  }
+
+  function findTodoIndex(todoId) {
+    for (const index in todos) {
+      if (todos[index].id === todoId) {
+        return index;
+      }
+    }
+   
+    return -1;
+  }
+
+  function removeTaskFromCompleted(todoId) {
+    const todoTarget = findTodoIndex(todoId);
+   
+    if (todoTarget === -1) return;
+   
+    todos.splice(todoTarget, 1);
+    document.dispatchEvent(new Event(RENDER_EVENT));
+    saveData();
+  }
+   
+   
+  function undoTaskFromCompleted(todoId) {
+    const todoTarget = findTodo(todoId);
+   
+    if (todoTarget == null) return;
+   
+    todoTarget.isCompleted = false;
+    document.dispatchEvent(new Event(RENDER_EVENT));
+    saveData();
+  }
+
+/**
+ * 
+ * Fungsi generateId() berfungsi untuk menghasilkan identitas unik pada setiap item todo.
+ *  Untuk menghasilkan identitas yang unik, kita manfaatkan +new Date() untuk mendapatkan timestamp pada JavaScript.
+ */
+function generateId() {
+    return +new Date();
+}
+
+/**
+ * 
+ * Fungsi generateTodoObject() berfungsi untuk membuat object baru dari data yang sudah disediakan
+ *  dari inputan (parameter function), diantaranya id, nama todo (task), waktu (timestamp),
+ *  dan isCompleted (penanda todo apakah sudah selesai atau belum)
+ */
+function generateTodoObject(id, task, timestamp, isCompleted) {
+    return {
+      id,
+      task,
+      timestamp,
+      isCompleted
+    }
+  }
+
+
+  function saveData() {
+  if (isStorageExist()) {
+    const parsed = JSON.stringify(todos);
+    localStorage.setItem(STORAGE_KEY, parsed);
+    document.dispatchEvent(new Event(SAVED_EVENT));
+  }
+}
+
+const SAVED_EVENT = 'saved-todo';
+const STORAGE_KEY = 'TODO_APPS';
+ 
+function isStorageExist() /* boolean */ {
+  if (typeof (Storage) === undefined) {
+    alert('Browser kamu tidak mendukung local storage');
+    return false;
+  }
+  return true;
+}
+
+document.addEventListener(SAVED_EVENT, function () {
+  console.log(localStorage.getItem(STORAGE_KEY));
+});
+
+function loadDataFromStorage() {
+  const serializedData = localStorage.getItem(STORAGE_KEY);
+  let data = JSON.parse(serializedData);
+ 
+  if (data !== null) {
+    for (const todo of data) {
+      todos.push(todo);
+    }
+  }
+ 
+  document.dispatchEvent(new Event(RENDER_EVENT));
+}
